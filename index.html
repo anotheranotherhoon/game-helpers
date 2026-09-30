@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>body{margin:0}[hidden]{display:none!important}</style>
-<title>바운스 오프 도우미</title>
+<title>게임 테이블 도우미</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;500;700&display=swap">
@@ -23,6 +23,12 @@
   --p1: #e5483f;
   --p2: #3a86e8;
   --p3: #f07c1e;
+  --card-bg: #fdfdfb;
+  --card-edge: #cfd5db;
+  --suit-red: #d4322c;
+  --suit-black: #1b2027;
+  --win: #2f9e6a;
+  --win-ink: #ffffff;
   --display: "Do Hyeon", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
 }
@@ -30,13 +36,13 @@
   :root:not([data-theme="light"]) {
     --bg: #11161c; --surface: #1a222b; --ink: #e8edf2; --muted: #95a3b0; --line: #2d3945;
     --board: #2c3d50; --card-rim: #3f8585;
-    --accent: #f07046; --accent-ink: #1a0d07; color-scheme: dark;
+    --accent: #f07046; --accent-ink: #1a0d07; --card-bg: #f2f1ec; --card-edge: #3a4652; --suit-red: #d8342e; --suit-black: #161a20; --win: #45c089; --win-ink: #08231a; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #11161c; --surface: #1a222b; --ink: #e8edf2; --muted: #95a3b0; --line: #2d3945;
   --board: #2c3d50; --card-rim: #3f8585;
-  --accent: #f07046; --accent-ink: #1a0d07; color-scheme: dark;
+  --accent: #f07046; --accent-ink: #1a0d07; --card-bg: #f2f1ec; --card-edge: #3a4652; --suit-red: #d8342e; --suit-black: #161a20; --win: #45c089; --win-ink: #08231a; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -134,14 +140,89 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 .sample { display: flex; gap: 14px; align-items: center; }
 .sample .card-face { width: 84px; flex: none; }
 .sample p { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* tabs */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--line); }
+.tabs button { padding: 10px; border-radius: 9px; font-family: var(--display); font-size: 18px; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+/* hold'em */
+.pk-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.pk-group { display: flex; flex-direction: column; gap: 4px; }
+.pk-group .label { text-align: center; }
+.pk-group .slots { display: flex; gap: 6px; }
+.pk-slot { width: 46px; aspect-ratio: 5 / 7; border-radius: 7px; border: 2px dashed var(--line); background: transparent; display: grid; place-items: center; padding: 0; flex: none; }
+.pk-slot.sel { border: 2px solid var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.pk-card { width: 100%; height: 100%; border-radius: 5px; background: var(--card-bg); border: 1px solid var(--card-edge); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; font-weight: 700; color: var(--suit-black); }
+.pk-card.red { color: var(--suit-red); }
+.pk-card .r { font-size: 18px; letter-spacing: -0.04em; }
+.pk-card .s { font-size: 16px; }
+.pk-slot.sel .pk-card { border-color: transparent; }
+.pk-mini { display: flex; gap: 3px; flex-wrap: wrap; }
+.pk-mini .pk-card { width: 26px; height: 36px; border-radius: 4px; }
+.pk-mini .pk-card .r { font-size: 12px; }
+.pk-mini .pk-card .s { font-size: 11px; }
+.pk-mini .pk-card.dim { opacity: .35; }
+
+.pk-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.stepper button { width: 36px; height: 34px; font-size: 18px; font-weight: 700; }
+.stepper button:disabled { opacity: .3; cursor: not-allowed; }
+.stepper span { min-width: 52px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.pk-players { display: flex; flex-direction: column; gap: 10px; }
+.pk-player { display: grid; grid-template-columns: auto auto 1fr; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
+.pk-player.win { border-color: var(--win); box-shadow: 0 0 0 2px var(--win) inset; }
+.pk-player .num { font-family: var(--display); font-size: 20px; width: 34px; text-align: center; }
+.pk-player .slots { display: flex; gap: 6px; }
+.pk-player .res { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.pk-player .hand { font-weight: 700; font-size: 14px; }
+.pk-player .detail { font-size: 12px; color: var(--muted); }
+.pk-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--win); color: var(--win-ink); margin-left: 6px; vertical-align: 1px; }
+.eq { display: flex; align-items: center; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.eq .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; min-width: 40px; }
+.eq .bar i { display: block; height: 100%; background: var(--win); }
+.eq b { min-width: 46px; text-align: right; }
+@media (max-width: 420px) {
+  .pk-player { grid-template-columns: auto auto; }
+  .pk-player .res { grid-column: 1 / -1; }
+}
+
+.verdict { padding: 14px; border-radius: 12px; background: color-mix(in srgb, var(--win) 14%, var(--surface)); display: flex; flex-direction: column; gap: 2px; }
+.verdict strong { font-family: var(--display); font-weight: 400; font-size: 22px; }
+.verdict span { font-size: 13px; color: var(--muted); }
+
+.picker { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0,0,0,.12); padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.picker .in { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.picker .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.picker .grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; }
+.picker .grid button { aspect-ratio: 5 / 7; border-radius: 4px; background: var(--card-bg); border: 1px solid var(--card-edge); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; font-weight: 700; font-size: 12px; color: var(--suit-black); padding: 0; min-width: 0; }
+.picker .grid button.red { color: var(--suit-red); }
+.picker .grid button:disabled { opacity: .18; cursor: not-allowed; }
+.picker .grid button.cur { outline: 2px solid var(--accent); outline-offset: 1px; }
+.picker .grid .s { font-size: 11px; }
+body.picking .wrap { padding-bottom: 240px; }
+
+.ranks { display: flex; flex-direction: column; gap: 0; }
+.ranks summary { cursor: pointer; font-family: var(--display); font-size: 20px; list-style-position: inside; }
+.ranks ol { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; counter-reset: rk; }
+.ranks li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; font-size: 14px; counter-increment: rk; }
+.ranks li::before { content: counter(rk); font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; text-align: right; }
+.ranks li .ex { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.pk-note { font-size: 12px; color: var(--muted); margin: 0; }
 </style>
 
 <div class="wrap">
   <header>
-    <h1>바운스 오프 도우미<small>판마다 정답 카드를 뽑고, 어느 팀이 이겼는지 기록합니다</small></h1>
+    <h1>게임 테이블 도우미<small id="sub">판마다 정답 카드를 뽑고, 어느 팀이 이겼는지 기록합니다</small></h1>
     <div class="reset-box" id="resetBox"></div>
   </header>
+  <nav class="tabs" role="tablist" aria-label="게임 고르기">
+    <button role="tab" data-tab="bounce" aria-selected="true">바운스 오프</button>
+    <button role="tab" data-tab="holdem" aria-selected="false">텍사스 홀덤</button>
+  </nav>
   <main id="app" style="display:flex;flex-direction:column;gap:22px"></main>
+  <main id="holdem" style="display:flex;flex-direction:column;gap:22px" hidden></main>
 </div>
 
 <script>
@@ -416,6 +497,276 @@ function render() {
   renderReset();
 }
 render();
+</script>
+<script>
+// ===================== 텍사스 홀덤 =====================
+const SUITS = ["♠", "♥", "♦", "♣"];
+const RL = r => ({ 14: "A", 13: "K", 12: "Q", 11: "J", 10: "10" }[r] || String(r));
+const rankOf = c => (c >> 2) + 2, suitOf = c => c & 3;
+const isRed = c => suitOf(c) === 1 || suitOf(c) === 2;
+const CAT = ["하이카드", "원 페어", "투 페어", "트리플", "스트레이트", "플러시", "풀하우스", "포카드", "스트레이트 플러시"];
+
+function straightHigh(mask) {
+  if (mask & (1 << 14)) mask |= 1 << 1;
+  for (let hi = 14; hi >= 5; hi--) if (((mask >> (hi - 4)) & 31) === 31) return hi;
+  return 0;
+}
+function pack(cat, ks) { let s = cat; for (let i = 0; i < 5; i++) s = s * 16 + (ks[i] || 0); return s; }
+function unpack(s) { const ks = []; for (let i = 4; i >= 0; i--) { ks[i] = s % 16; s = Math.floor(s / 16); } return { cat: s, ks }; }
+// best hand score for any 2–7 cards; higher is better
+function evaluate(cards) {
+  const cnt = new Array(15).fill(0), sm = [0, 0, 0, 0], sc = [0, 0, 0, 0];
+  let mask = 0;
+  for (const c of cards) { const r = rankOf(c), s = suitOf(c); cnt[r]++; mask |= 1 << r; sm[s] |= 1 << r; sc[s]++; }
+  let flush = -1;
+  for (let s = 0; s < 4; s++) if (sc[s] >= 5) { const hi = straightHigh(sm[s]); if (hi) return pack(8, [hi]); flush = s; }
+  const quads = [], trips = [], pairs = [], singles = [];
+  for (let r = 14; r >= 2; r--) ({ 4: quads, 3: trips, 2: pairs, 1: singles })[cnt[r]]?.push(r);
+  const rest = (...skip) => { const o = []; for (let r = 14; r >= 2; r--) if (cnt[r] && !skip.includes(r)) o.push(r); return o; };
+  if (quads.length) return pack(7, [quads[0], rest(quads[0])[0]]);
+  if (trips.length && (trips.length > 1 || pairs.length)) return pack(6, [trips[0], Math.max(trips[1] || 0, pairs[0] || 0)]);
+  if (flush >= 0) { const o = []; for (let r = 14; r >= 2 && o.length < 5; r--) if (sm[flush] & (1 << r)) o.push(r); return pack(5, o); }
+  const st = straightHigh(mask);
+  if (st) return pack(4, [st]);
+  if (trips.length) return pack(3, [trips[0], ...rest(trips[0]).slice(0, 2)]);
+  if (pairs.length >= 2) return pack(2, [pairs[0], pairs[1], rest(pairs[0], pairs[1])[0]]);
+  if (pairs.length) return pack(1, [pairs[0], ...rest(pairs[0]).slice(0, 3)]);
+  return pack(0, rest().slice(0, 5));
+}
+function handName(score) {
+  const { cat, ks } = unpack(score);
+  if (cat === 8 && ks[0] === 14) return "로열 스트레이트 플러시";
+  return CAT[cat];
+}
+function handDetail(score) {
+  const { cat, ks } = unpack(score);
+  const k = ks.filter(Boolean).map(RL);
+  const kick = arr => arr.length ? `, 킥커 ${arr.join(" ")}` : "";
+  switch (cat) {
+    case 8: return ks[0] === 14 ? "10 J Q K A 같은 무늬" : `${k[0]} 하이`;
+    case 7: return `${k[0]} 넷${kick(k.slice(1))}`;
+    case 6: return `${k[0]} 셋 + ${k[1]} 둘`;
+    case 5: return `${k.join(" ")}`;
+    case 4: return `${k[0]} 하이`;
+    case 3: return `${k[0]} 셋${kick(k.slice(1))}`;
+    case 2: return `${k[0]}·${k[1]}${kick(k.slice(2))}`;
+    case 1: return `${k[0]} 페어${kick(k.slice(1))}`;
+    default: return k.join(" ");
+  }
+}
+function best5(cards) {
+  if (cards.length <= 5) return cards;
+  const target = evaluate(cards);
+  let found = null;
+  combos(cards, 5, five => { if (!found && evaluate(five) === target) found = five.slice(); });
+  return found || cards.slice(0, 5);
+}
+
+// ---------- equity ----------
+function combos(arr, k, fn, start = 0, pick = []) {
+  if (pick.length === k) { fn(pick); return; }
+  for (let i = start; i <= arr.length - (k - pick.length); i++) { pick.push(arr[i]); combos(arr, k, fn, i + 1, pick); pick.pop(); }
+}
+function equity(board, hands) {
+  const known = new Set([...board, ...hands.flat()].filter(c => c != null));
+  const pool = []; for (let c = 0; c < 52; c++) if (!known.has(c)) pool.push(c);
+  const b = board.filter(c => c != null), need = 5 - b.length;
+  const hs = hands.map(hd => hd.filter(c => c != null));
+  const win = hands.map(() => 0), tie = hands.map(() => 0);
+  let total = 0;
+  const score = (fullBoard, fullHands) => {
+    let best = -1, who = [];
+    fullHands.forEach((hd, i) => { const s = evaluate(fullBoard.concat(hd)); if (s > best) { best = s; who = [i]; } else if (s === best) who.push(i); });
+    if (who.length === 1) win[who[0]]++; else who.forEach(i => tie[i]++);
+    total++;
+  };
+  const allKnown = hs.every(hd => hd.length === 2);
+  if (allKnown && need <= 3) {
+    combos(pool, need, extra => score(b.concat(extra), hs));
+    return { win, tie, total, exact: true };
+  }
+  const missing = hs.reduce((s, hd) => s + 2 - hd.length, 0) + need;
+  const ITER = 20000, p = pool.slice();
+  for (let it = 0; it < ITER; it++) {
+    for (let j = 0; j < missing; j++) { const r = j + Math.floor(Math.random() * (p.length - j)); [p[j], p[r]] = [p[r], p[j]]; }
+    let q = 0;
+    const fb = b.concat(p.slice(q, q + need)); q += need;
+    const fh = hs.map(hd => { const x = hd.concat(p.slice(q, q + 2 - hd.length)); q += 2 - hd.length; return x; });
+    score(fb, fh);
+  }
+  return { win, tie, total, exact: false };
+}
+
+// ---------- state ----------
+const HSTORE = "holdem-helper-v1";
+function freshHoldem(n = 2) { return { n, board: [null, null, null, null, null], hands: Array.from({ length: 9 }, () => [null, null]), sel: { t: "p", p: 0, i: 0 } }; }
+let H = freshHoldem();
+try { const saved = JSON.parse(localStorage.getItem(HSTORE)); if (saved && saved.board) H = { ...freshHoldem(), ...saved }; } catch (e) {}
+function hsave() { try { localStorage.setItem(HSTORE, JSON.stringify(H)); } catch (e) {} }
+
+const slotVal = s => s.t === "b" ? H.board[s.i] : H.hands[s.p][s.i];
+function setSlot(s, v) { if (s.t === "b") H.board[s.i] = v; else H.hands[s.p][s.i] = v; }
+const sameSlot = (a, b) => a && b && a.t === b.t && a.i === b.i && (a.t === "b" || a.p === b.p);
+function slotOrder() {
+  const o = [];
+  for (let p = 0; p < H.n; p++) for (let i = 0; i < 2; i++) o.push({ t: "p", p, i });
+  for (let i = 0; i < 5; i++) o.push({ t: "b", i });
+  return o;
+}
+function nextEmpty(from) {
+  const o = slotOrder(), start = o.findIndex(s => sameSlot(s, from));
+  for (let k = 1; k <= o.length; k++) { const s = o[(start + k) % o.length]; if (slotVal(s) == null) return s; }
+  return null;
+}
+function slotLabel(s) {
+  if (s.t === "b") return ["플랍 첫째", "플랍 둘째", "플랍 셋째", "턴", "리버"][s.i] + " 카드";
+  return `${s.p + 1}번 ${s.i === 0 ? "첫째" : "둘째"} 카드`;
+}
+
+function pcard(c, cls = "") {
+  return h("span", { class: `pk-card ${isRed(c) ? "red" : ""} ${cls}` }, h("span", { class: "r" }, RL(rankOf(c))), h("span", { class: "s" }, SUITS[suitOf(c)]));
+}
+function slotBtn(s) {
+  const v = slotVal(s);
+  return h("button", { class: "pk-slot" + (sameSlot(s, H.sel) ? " sel" : ""), id: s.t === "b" ? `b-${s.i}` : `p-${s.p}-${s.i}`, "aria-label": slotLabel(s) + (v != null ? `: ${RL(rankOf(v))}${SUITS[suitOf(v)]}` : " (비어 있음)"),
+    on: { click: () => { H.sel = sameSlot(s, H.sel) ? null : s; hsave(); renderHoldem(); } } }, v != null ? pcard(v) : null);
+}
+
+let eqTimer = null;
+function renderHoldem() {
+  const root = document.getElementById("holdem");
+  const active = !root.hidden;
+  root.replaceChildren();
+  const board = H.board, hands = H.hands.slice(0, H.n);
+  const boardCards = board.filter(c => c != null);
+  const complete = hands.map(hd => hd.every(c => c != null));
+  const scores = hands.map((hd, i) => {
+    const cards = boardCards.concat(hd.filter(c => c != null));
+    return hd.some(c => c != null) ? evaluate(cards) : null;
+  });
+
+  // board
+  const bp = h("section", { class: "panel" },
+    h("div", { class: "pk-head" }, h("h2", {}, "공유 카드"), h("span", { class: "label" }, boardCards.length ? `${boardCards.length}장 공개` : "플랍 전")),
+    h("div", { class: "pk-row" },
+      h("div", { class: "pk-group" }, h("span", { class: "label" }, "플랍"), h("div", { class: "slots" }, [0, 1, 2].map(i => slotBtn({ t: "b", i })))),
+      h("div", { class: "pk-group" }, h("span", { class: "label" }, "턴"), h("div", { class: "slots" }, slotBtn({ t: "b", i: 3 }))),
+      h("div", { class: "pk-group" }, h("span", { class: "label" }, "리버"), h("div", { class: "slots" }, slotBtn({ t: "b", i: 4 })))),
+  );
+
+  // verdict
+  const allIn = complete.every(Boolean);
+  const top = Math.max(...scores.map(s => s ?? -1));
+  const leaders = scores.map((s, i) => s === top && s != null ? i : -1).filter(i => i >= 0);
+  let verdict = null;
+  if (allIn && boardCards.length === 5) {
+    verdict = h("div", { class: "verdict", "aria-live": "polite" },
+      h("strong", {}, leaders.length === 1 ? `${leaders[0] + 1}번 승리` : `${leaders.map(i => i + 1).join("번, ")}번 무승부 (팟 나눔)`),
+      h("span", {}, `${handName(top)} · ${handDetail(top)}`));
+  } else if (allIn && boardCards.length >= 3) {
+    verdict = h("div", { class: "verdict" },
+      h("strong", {}, `지금은 ${leaders.map(i => i + 1).join("번, ")}번이 앞서요`),
+      h("span", {}, `${handName(top)} · 리버까지 넣으면 최종 판정이 나와요`));
+  }
+
+  // players
+  const list = h("div", { class: "pk-players" });
+  hands.forEach((hd, p) => {
+    const s = scores[p];
+    const isWin = verdict && leaders.includes(p) && boardCards.length >= 3 && allIn;
+    const res = h("div", { class: "res" });
+    if (s != null && boardCards.length + hd.filter(c => c != null).length >= 2) {
+      const all = boardCards.concat(hd.filter(c => c != null));
+      const five = best5(all);
+      res.append(
+        h("div", { class: "hand" }, handName(s), isWin && boardCards.length === 5 ? h("span", { class: "pk-badge" }, leaders.length > 1 ? "공동 1등" : "승리") : null),
+        h("div", { class: "detail" }, handDetail(s)),
+        all.length >= 5 ? h("div", { class: "pk-mini", "aria-label": "가장 높은 5장" }, five.map(c => pcard(c))) : null);
+    } else {
+      res.append(h("div", { class: "detail" }, "카드 2장을 넣어주세요"));
+    }
+    res.append(h("div", { class: "eq", id: `eq-${p}` }, h("span", {}, "승률"), h("span", { class: "bar" }, h("i", { style: "width:0%" })), h("b", {}, "–")));
+    list.append(h("div", { class: "pk-player" + (isWin ? " win" : "") },
+      h("span", { class: "num" }, `${p + 1}`),
+      h("div", { class: "slots" }, [0, 1].map(i => slotBtn({ t: "p", p, i }))),
+      res));
+  });
+  const pp = h("section", { class: "panel" },
+    h("div", { class: "pk-head" }, h("h2", {}, "플레이어 패"),
+      h("div", { class: "stepper", role: "group", "aria-label": "인원" },
+        h("button", { "aria-label": "한 명 빼기", disabled: H.n <= 2, on: { click: () => { H.hands[H.n - 1] = [null, null]; H.n--; if (H.sel?.t === "p" && H.sel.p >= H.n) H.sel = null; hsave(); renderHoldem(); } } }, "−"),
+        h("span", {}, `${H.n}명`),
+        h("button", { "aria-label": "한 명 더하기", disabled: H.n >= 9, on: { click: () => { H.n++; hsave(); renderHoldem(); } } }, "+"))),
+    verdict, list,
+    h("p", { class: "pk-note", id: "eq-note" }, "승률은 카드를 넣으면 계산돼요. 패를 모르는 사람은 무작위 카드로 가정해요."),
+    h("div", { class: "row-actions" }, h("button", { class: "btn", on: { click: () => { H = freshHoldem(H.n); hsave(); renderHoldem(); } } }, "새 판 (카드 모두 비우기)")),
+  );
+
+  // hand ranking reference
+  const ex = [["로열 스트레이트 플러시", "A♠ K♠ Q♠ J♠ 10♠"], ["스트레이트 플러시", "9♥ 8♥ 7♥ 6♥ 5♥"], ["포카드", "Q Q Q Q 7"], ["풀하우스", "8 8 8 K K"], ["플러시", "같은 무늬 5장"], ["스트레이트", "5 6 7 8 9"], ["트리플", "7 7 7 K 2"], ["투 페어", "J J 4 4 A"], ["원 페어", "10 10 A 8 3"], ["하이카드", "A J 9 6 2"]];
+  const rk = h("details", { class: "panel ranks" }, h("summary", {}, "족보 순서"),
+    h("ol", {}, ex.map(([n, e]) => h("li", {}, h("span", {}, n), h("span", { class: "ex" }, e)))));
+
+  root.append(bp, pp, rk);
+
+  // picker
+  document.getElementById("picker")?.remove();
+  document.body.classList.toggle("picking", active && !!H.sel);
+  if (active && H.sel) {
+    const used = new Set([...H.board, ...H.hands.slice(0, H.n).flat()].filter(c => c != null));
+    const cur = slotVal(H.sel);
+    const grid = h("div", { class: "grid" });
+    for (let s = 0; s < 4; s++) for (let r = 14; r >= 2; r--) {
+      const c = (r - 2) * 4 + s;
+      grid.append(h("button", { class: (isRed(c) ? "red" : "") + (c === cur ? " cur" : ""), disabled: used.has(c) && c !== cur, "aria-label": `${RL(r)}${SUITS[s]}`,
+        on: { click: () => { setSlot(H.sel, c); H.sel = nextEmpty(H.sel); hsave(); renderHoldem(); } } }, h("span", {}, RL(r)), h("span", { class: "s" }, SUITS[s])));
+    }
+    document.body.append(h("div", { class: "picker", id: "picker" }, h("div", { class: "in" },
+      h("div", { class: "top" }, h("strong", {}, `${slotLabel(H.sel)} 고르기`),
+        h("span", { class: "row-actions" },
+          cur != null ? h("button", { class: "btn small", on: { click: () => { setSlot(H.sel, null); hsave(); renderHoldem(); } } }, "비우기") : null,
+          h("button", { class: "btn small ghost", on: { click: () => { H.sel = null; hsave(); renderHoldem(); } } }, "닫기"))),
+      grid)));
+  }
+
+  // equity, computed after paint
+  clearTimeout(eqTimer);
+  const anyCard = hands.some(hd => hd.some(c => c != null));
+  if (!anyCard) return;
+  eqTimer = setTimeout(() => {
+    const r = equity(board, hands);
+    hands.forEach((_, p) => {
+      const el = document.getElementById(`eq-${p}`); if (!el) return;
+      const w = r.win[p] / r.total * 100, t = r.tie[p] / r.total * 100;
+      el.querySelector("i").style.width = `${w + t}%`;
+      el.querySelector("b").textContent = `${w.toFixed(1)}%`;
+      el.title = `이김 ${w.toFixed(1)}% · 비김 ${t.toFixed(1)}%`;
+      if (t >= 0.1) el.querySelector("b").textContent += ` (+비김 ${t.toFixed(1)}%)`;
+    });
+    const note = document.getElementById("eq-note");
+    if (note) note.textContent = r.exact
+      ? `남은 카드의 모든 경우(${r.total.toLocaleString()}가지)를 계산한 정확한 승률이에요.`
+      : `무작위로 ${r.total.toLocaleString()}판을 돌려 본 추정 승률이에요. 패를 모르는 사람은 무작위 카드로 가정해요.`;
+  }, 30);
+}
+
+// ---------- tabs ----------
+let TAB = "bounce";
+try { TAB = localStorage.getItem("game-helper-tab") || "bounce"; } catch (e) {}
+if (location.hash === "#holdem") TAB = "holdem";
+if (location.hash === "#bounce") TAB = "bounce";
+function setTab(t) {
+  TAB = t;
+  try { localStorage.setItem("game-helper-tab", t); } catch (e) {}
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
+  document.getElementById("app").hidden = t !== "bounce";
+  document.getElementById("resetBox").hidden = t !== "bounce";
+  document.getElementById("holdem").hidden = t !== "holdem";
+  document.getElementById("sub").textContent = t === "bounce" ? "판마다 정답 카드를 뽑고, 어느 팀이 이겼는지 기록합니다" : "내 최고 족보와 승률을 보고, 누가 이겼는지 판정합니다";
+  renderHoldem();
+}
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
+setTab(TAB);
 </script>
 
 </html>
