@@ -671,9 +671,8 @@ function renderHoldem() {
   const stage = { 0: "프리플랍", 3: "플랍", 4: "턴", 5: "리버" }[boardCards.length] || "플랍 넣는 중";
 
   root.append(h("section", { class: "panel" },
-    h("div", { class: "pk-head" }, h("h2", {}, "테이블"), h("span", { class: "label" }, stage)),
+    h("div", { class: "pk-head" }, h("h2", {}, "공유 카드"), h("span", { class: "label" }, stage)),
     h("div", { class: "pk-row" },
-      group("내 패", [{ t: "m", i: 0 }, { t: "m", i: 1 }], tgt),
       group("플랍", [0, 1, 2].map(i => ({ t: "b", i })), tgt),
       group("턴", [{ t: "b", i: 3 }], tgt),
       group("리버", [{ t: "b", i: 4 }], tgt))));
@@ -683,8 +682,10 @@ function renderHoldem() {
   if (!H.showdown) {
     seats = [{ label: "나", hand: H.mine }, ...Array.from({ length: H.opp }, () => ({ hand: [null, null] }))];
     root.append(h("section", { class: "panel" },
-      h("div", { class: "pk-head" }, h("h2", {}, "내 족보"), stepper()),
-      h("div", { class: "res", style: "display:flex;flex-direction:column;gap:6px" }, handBlock(H.mine, boardCards, mineDone ? "eq-0" : null)),
+      h("div", { class: "pk-head" }, h("h2", {}, "내 패"), stepper()),
+      h("div", { class: "pk-player" },
+        h("div", { class: "slots" }, [0, 1].map(i => slotBtn({ t: "m", i }, tgt))),
+        h("div", { class: "res", style: "grid-column: span 2" }, ...handBlock(H.mine, boardCards, mineDone ? "eq-0" : null))),
       h("p", { class: "pk-note", id: "eq-note" }, mineDone ? "상대 패는 모르니 무작위로 가정해 계산해요. 누가 폴드하면 상대 수를 줄여주세요." : "내 패 2장을 넣으면 족보와 승률이 나와요."),
       h("div", { class: "row-actions" },
         h("button", { class: "btn primary", disabled: !mineDone, on: { click: () => { H.showdown = true; H.sel = null; H.fold = false; hsave(); renderHoldem(); } } }, "결과 확인 (상대 패 넣기)"),
