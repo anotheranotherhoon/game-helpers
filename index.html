@@ -541,17 +541,17 @@ function handName(score) {
 function handDetail(score) {
   const { cat, ks } = unpack(score);
   const k = ks.filter(Boolean).map(RL);
-  const kick = arr => arr.length ? `, 킥커 ${arr.join(" ")}` : "";
+  const kick = arr => arr.length ? ` · 킥커 ${arr.join(", ")}` : "";
   switch (cat) {
-    case 8: return ks[0] === 14 ? "10 J Q K A 같은 무늬" : `${k[0]} 하이`;
-    case 7: return `${k[0]} 넷${kick(k.slice(1))}`;
-    case 6: return `${k[0]} 셋 + ${k[1]} 둘`;
-    case 5: return `${k.join(" ")}`;
+    case 8: return ks[0] === 14 ? "10 J Q K A, 모두 같은 무늬" : `${k[0]} 하이, 모두 같은 무늬`;
+    case 7: return `${k[0]} 네 장${kick(k.slice(1))}`;
+    case 6: return `${k[0]} 세 장 + ${k[1]} 두 장`;
+    case 5: return `${k[0]} 하이 (${k.join(" ")})`;
     case 4: return `${k[0]} 하이`;
-    case 3: return `${k[0]} 셋${kick(k.slice(1))}`;
-    case 2: return `${k[0]}·${k[1]}${kick(k.slice(2))}`;
+    case 3: return `${k[0]} 세 장${kick(k.slice(1))}`;
+    case 2: return `${k[0]} 페어 + ${k[1]} 페어${kick(k.slice(2))}`;
     case 1: return `${k[0]} 페어${kick(k.slice(1))}`;
-    default: return k.join(" ");
+    default: return `${k[0]} 하이${k.length > 1 ? ` (${k.join(" ")})` : ""}`;
   }
 }
 function best5(cards) {
@@ -560,6 +560,14 @@ function best5(cards) {
   let found = null;
   combos(cards, 5, five => { if (!found && evaluate(five) === target) found = five.slice(); });
   return found || cards.slice(0, 5);
+}
+// show the five cards the way players read them: groups first (333 77), then high to low; wheel as 5 4 3 2 A
+function orderHand(five) {
+  const cnt = {}; five.forEach(c => cnt[rankOf(c)] = (cnt[rankOf(c)] || 0) + 1);
+  const out = five.slice().sort((a, b) => cnt[rankOf(b)] - cnt[rankOf(a)] || rankOf(b) - rankOf(a) || suitOf(a) - suitOf(b));
+  const rs = out.map(rankOf);
+  if (five.length === 5 && rs.join() === "14,5,4,3,2") out.push(out.shift());
+  return out;
 }
 
 // ---------- equity ----------
@@ -677,11 +685,11 @@ function renderHoldem() {
     const res = h("div", { class: "res" });
     if (s != null && boardCards.length + hd.filter(c => c != null).length >= 2) {
       const all = boardCards.concat(hd.filter(c => c != null));
-      const five = best5(all);
-      res.append(
+      const five = orderHand(best5(all));
+      res.append(...[
         h("div", { class: "hand" }, handName(s), isWin && boardCards.length === 5 ? h("span", { class: "pk-badge" }, leaders.length > 1 ? "공동 1등" : "승리") : null),
         h("div", { class: "detail" }, handDetail(s)),
-        all.length >= 5 ? h("div", { class: "pk-mini", "aria-label": "가장 높은 5장" }, five.map(c => pcard(c))) : null);
+        all.length >= 5 ? h("div", { class: "pk-mini", "aria-label": "가장 높은 5장" }, five.map(c => pcard(c))) : null].filter(Boolean));
     } else {
       res.append(h("div", { class: "detail" }, "카드 2장을 넣어주세요"));
     }
@@ -705,7 +713,8 @@ function renderHoldem() {
   // hand ranking reference
   const ex = [["로열 스트레이트 플러시", "A♠ K♠ Q♠ J♠ 10♠"], ["스트레이트 플러시", "9♥ 8♥ 7♥ 6♥ 5♥"], ["포카드", "Q Q Q Q 7"], ["풀하우스", "8 8 8 K K"], ["플러시", "같은 무늬 5장"], ["스트레이트", "5 6 7 8 9"], ["트리플", "7 7 7 K 2"], ["투 페어", "J J 4 4 A"], ["원 페어", "10 10 A 8 3"], ["하이카드", "A J 9 6 2"]];
   const rk = h("details", { class: "panel ranks" }, h("summary", {}, "족보 순서"),
-    h("ol", {}, ex.map(([n, e]) => h("li", {}, h("span", {}, n), h("span", { class: "ex" }, e)))));
+    h("ol", {}, ex.map(([n, e]) => h("li", {}, h("span", {}, n), h("span", { class: "ex" }, e)))),
+    h("p", { class: "pk-note", style: "margin-top:12px" }, "킥커는 족보가 같을 때 승부를 가르는 나머지 카드예요. 예를 들어 둘 다 10 페어면 킥커가 높은 쪽이 이겨요. 하이는 그 조합에서 가장 높은 카드예요."));
 
   root.append(bp, pp, rk);
 
