@@ -606,156 +606,172 @@ function equity(board, hands) {
 }
 
 // ---------- state ----------
-const HSTORE = "holdem-helper-v1";
-function freshHoldem(n = 2) { return { n, board: [null, null, null, null, null], hands: Array.from({ length: 9 }, () => [null, null]), sel: { t: "p", p: 0, i: 0 } }; }
+// 게임 중에는 내 패 + 공유 카드만, 결과 확인(쇼다운)을 열면 상대 패 입력
+const HSTORE = "holdem-helper-v2";
+function freshHoldem(opp = 2) { return { opp, mine: [null, null], board: [null, null, null, null, null], opps: Array.from({ length: 8 }, () => [null, null]), showdown: false, sel: null, fold: false }; }
 let H = freshHoldem();
 try { const saved = JSON.parse(localStorage.getItem(HSTORE)); if (saved && saved.board) H = { ...freshHoldem(), ...saved }; } catch (e) {}
 function hsave() { try { localStorage.setItem(HSTORE, JSON.stringify(H)); } catch (e) {} }
 
-const slotVal = s => s.t === "b" ? H.board[s.i] : H.hands[s.p][s.i];
-function setSlot(s, v) { if (s.t === "b") H.board[s.i] = v; else H.hands[s.p][s.i] = v; }
-const sameSlot = (a, b) => a && b && a.t === b.t && a.i === b.i && (a.t === "b" || a.p === b.p);
+const slotVal = s => s.t === "b" ? H.board[s.i] : s.t === "m" ? H.mine[s.i] : H.opps[s.p][s.i];
+function setSlot(s, v) { if (s.t === "b") H.board[s.i] = v; else if (s.t === "m") H.mine[s.i] = v; else H.opps[s.p][s.i] = v; }
+const sameSlot = (a, b) => !!a && !!b && a.t === b.t && a.i === b.i && (a.t !== "o" || a.p === b.p);
 function slotOrder() {
-  const o = [];
-  for (let p = 0; p < H.n; p++) for (let i = 0; i < 2; i++) o.push({ t: "p", p, i });
+  const o = [{ t: "m", i: 0 }, { t: "m", i: 1 }];
+  if (H.showdown) for (let p = 0; p < H.opp; p++) o.push({ t: "o", p, i: 0 }, { t: "o", p, i: 1 });
   for (let i = 0; i < 5; i++) o.push({ t: "b", i });
   return o;
 }
-function nextEmpty(from) {
-  const o = slotOrder(), start = o.findIndex(s => sameSlot(s, from));
-  for (let k = 1; k <= o.length; k++) { const s = o[(start + k) % o.length]; if (slotVal(s) == null) return s; }
-  return null;
-}
+const target = () => H.sel || slotOrder().find(s => slotVal(s) == null) || null;
 function slotLabel(s) {
   if (s.t === "b") return ["플랍 첫째", "플랍 둘째", "플랍 셋째", "턴", "리버"][s.i] + " 카드";
-  return `${s.p + 1}번 ${s.i === 0 ? "첫째" : "둘째"} 카드`;
+  if (s.t === "m") return `내 패 ${s.i === 0 ? "첫째" : "둘째"} 카드`;
+  return `상대 ${s.p + 1} ${s.i === 0 ? "첫째" : "둘째"} 카드`;
 }
+const slotId = s => s.t === "b" ? `b-${s.i}` : s.t === "m" ? `m-${s.i}` : `o-${s.p}-${s.i}`;
 
 function pcard(c, cls = "") {
   return h("span", { class: `pk-card ${isRed(c) ? "red" : ""} ${cls}` }, h("span", { class: "r" }, RL(rankOf(c))), h("span", { class: "s" }, SUITS[suitOf(c)]));
 }
-function slotBtn(s) {
+function slotBtn(s, tgt) {
   const v = slotVal(s);
-  return h("button", { class: "pk-slot" + (sameSlot(s, H.sel) ? " sel" : ""), id: s.t === "b" ? `b-${s.i}` : `p-${s.p}-${s.i}`, "aria-label": slotLabel(s) + (v != null ? `: ${RL(rankOf(v))}${SUITS[suitOf(v)]}` : " (비어 있음)"),
-    on: { click: () => { H.sel = sameSlot(s, H.sel) ? null : s; hsave(); renderHoldem(); } } }, v != null ? pcard(v) : null);
+  return h("button", { class: "pk-slot" + (sameSlot(s, tgt) && !H.fold ? " sel" : ""), id: slotId(s), "aria-label": slotLabel(s) + (v != null ? `: ${RL(rankOf(v))}${SUITS[suitOf(v)]}` : " (비어 있음)"),
+    on: { click: () => { H.sel = s; H.fold = false; hsave(); renderHoldem(); } } }, v != null ? pcard(v) : null);
 }
+const group = (label, slots, tgt) => h("div", { class: "pk-group" }, h("span", { class: "label" }, label), h("div", { class: "slots" }, slots.map(s => slotBtn(s, tgt))));
+const known = arr => arr.filter(c => c != null);
+
+function handBlock(hand, boardCards, eqId) {
+  const hc = known(hand), all = boardCards.concat(hc);
+  const res = [];
+  if (hc.length === 2) {
+    const sc = evaluate(all);
+    res.push(h("div", { class: "hand" }, handName(sc)), h("div", { class: "detail" }, handDetail(sc)));
+    if (all.length >= 5) res.push(h("div", { class: "pk-mini", "aria-label": "가장 높은 5장" }, orderHand(best5(all)).map(c => pcard(c))));
+  } else res.push(h("div", { class: "detail" }, "카드 2장을 넣어주세요"));
+  if (eqId) res.push(h("div", { class: "eq", id: eqId }, h("span", {}, "승률"), h("span", { class: "bar" }, h("i", { style: "width:0%" })), h("b", {}, "–")));
+  return res;
+}
+function stepper() {
+  return h("div", { class: "stepper", role: "group", "aria-label": "남은 상대 수" },
+    h("button", { "aria-label": "상대 한 명 빼기", disabled: H.opp <= 1, on: { click: () => { H.opps[H.opp - 1] = [null, null]; H.opp--; if (H.sel?.t === "o" && H.sel.p >= H.opp) H.sel = null; hsave(); renderHoldem(); } } }, "−"),
+    h("span", {}, `상대 ${H.opp}명`),
+    h("button", { "aria-label": "상대 한 명 더하기", disabled: H.opp >= 8, on: { click: () => { H.opp++; hsave(); renderHoldem(); } } }, "+"));
+}
+const newHand = () => { H = freshHoldem(H.opp); hsave(); renderHoldem(); };
 
 let eqTimer = null;
 function renderHoldem() {
   const root = document.getElementById("holdem");
   const active = !root.hidden;
   root.replaceChildren();
-  const board = H.board, hands = H.hands.slice(0, H.n);
-  const boardCards = board.filter(c => c != null);
-  const complete = hands.map(hd => hd.every(c => c != null));
-  const scores = hands.map((hd, i) => {
-    const cards = boardCards.concat(hd.filter(c => c != null));
-    return hd.some(c => c != null) ? evaluate(cards) : null;
-  });
+  const tgt = target();
+  const boardCards = known(H.board);
+  const mineDone = known(H.mine).length === 2;
+  const stage = { 0: "프리플랍", 3: "플랍", 4: "턴", 5: "리버" }[boardCards.length] || "플랍 넣는 중";
 
-  // board
-  const bp = h("section", { class: "panel" },
-    h("div", { class: "pk-head" }, h("h2", {}, "공유 카드"), h("span", { class: "label" }, boardCards.length ? `${boardCards.length}장 공개` : "플랍 전")),
+  root.append(h("section", { class: "panel" },
+    h("div", { class: "pk-head" }, h("h2", {}, "테이블"), h("span", { class: "label" }, stage)),
     h("div", { class: "pk-row" },
-      h("div", { class: "pk-group" }, h("span", { class: "label" }, "플랍"), h("div", { class: "slots" }, [0, 1, 2].map(i => slotBtn({ t: "b", i })))),
-      h("div", { class: "pk-group" }, h("span", { class: "label" }, "턴"), h("div", { class: "slots" }, slotBtn({ t: "b", i: 3 }))),
-      h("div", { class: "pk-group" }, h("span", { class: "label" }, "리버"), h("div", { class: "slots" }, slotBtn({ t: "b", i: 4 })))),
-  );
+      group("내 패", [{ t: "m", i: 0 }, { t: "m", i: 1 }], tgt),
+      group("플랍", [0, 1, 2].map(i => ({ t: "b", i })), tgt),
+      group("턴", [{ t: "b", i: 3 }], tgt),
+      group("리버", [{ t: "b", i: 4 }], tgt))));
 
-  // verdict
-  const allIn = complete.every(Boolean);
-  const top = Math.max(...scores.map(s => s ?? -1));
-  const leaders = scores.map((s, i) => s === top && s != null ? i : -1).filter(i => i >= 0);
-  let verdict = null;
-  if (allIn && boardCards.length === 5) {
-    verdict = h("div", { class: "verdict", "aria-live": "polite" },
-      h("strong", {}, leaders.length === 1 ? `${leaders[0] + 1}번 승리` : `${leaders.map(i => i + 1).join("번, ")}번 무승부 (팟 나눔)`),
-      h("span", {}, `${handName(top)} · ${handDetail(top)}`));
-  } else if (allIn && boardCards.length >= 3) {
-    verdict = h("div", { class: "verdict" },
-      h("strong", {}, `지금은 ${leaders.map(i => i + 1).join("번, ")}번이 앞서요`),
-      h("span", {}, `${handName(top)} · 리버까지 넣으면 최종 판정이 나와요`));
+  // who is compared, for equity: [{label, hand}]
+  let seats;
+  if (!H.showdown) {
+    seats = [{ label: "나", hand: H.mine }, ...Array.from({ length: H.opp }, () => ({ hand: [null, null] }))];
+    root.append(h("section", { class: "panel" },
+      h("div", { class: "pk-head" }, h("h2", {}, "내 족보"), stepper()),
+      h("div", { class: "res", style: "display:flex;flex-direction:column;gap:6px" }, handBlock(H.mine, boardCards, mineDone ? "eq-0" : null)),
+      h("p", { class: "pk-note", id: "eq-note" }, mineDone ? "상대 패는 모르니 무작위로 가정해 계산해요. 누가 폴드하면 상대 수를 줄여주세요." : "내 패 2장을 넣으면 족보와 승률이 나와요."),
+      h("div", { class: "row-actions" },
+        h("button", { class: "btn primary", disabled: !mineDone, on: { click: () => { H.showdown = true; H.sel = null; H.fold = false; hsave(); renderHoldem(); } } }, "결과 확인 (상대 패 넣기)"),
+        h("button", { class: "btn", on: { click: newHand } }, "새 판"))));
+  } else {
+    const rows = [{ label: "나", hand: H.mine, slots: [{ t: "m", i: 0 }, { t: "m", i: 1 }] },
+      ...Array.from({ length: H.opp }, (_, p) => ({ label: `상대 ${p + 1}`, hand: H.opps[p], slots: [{ t: "o", p, i: 0 }, { t: "o", p, i: 1 }] }))];
+    seats = rows.filter(r => known(r.hand).length === 2);
+    const scores = seats.map(r => evaluate(boardCards.concat(r.hand)));
+    const top = Math.max(...scores);
+    const leaders = seats.filter((_, i) => scores[i] === top);
+    let verdict = null;
+    if (seats.length >= 2 && boardCards.length === 5) {
+      verdict = h("div", { class: "verdict", "aria-live": "polite" },
+        h("strong", {}, leaders.length === 1 ? `${leaders[0].label} 승리` : `${leaders.map(r => r.label).join(", ")} 무승부 (팟 나눔)`),
+        h("span", {}, `${handName(top)} · ${handDetail(top)}`));
+    } else if (seats.length >= 2) {
+      verdict = h("div", { class: "verdict" },
+        h("strong", {}, `지금은 ${leaders.map(r => r.label).join(", ")} 우세`),
+        h("span", {}, `남은 공유 카드 ${5 - boardCards.length}장을 넣으면 최종 판정이 나와요`));
+    }
+    const final = verdict && boardCards.length === 5;
+    const list = h("div", { class: "pk-players" });
+    rows.forEach(r => {
+      const si = seats.indexOf(r);
+      const win = final && leaders.includes(r);
+      list.append(h("div", { class: "pk-player" + (win ? " win" : "") },
+        h("span", { class: "num", style: "width:auto;min-width:34px;font-size:16px" }, r.label),
+        h("div", { class: "slots" }, r.slots.map(s => slotBtn(s, tgt))),
+        h("div", { class: "res" }, ...handBlock(r.hand, boardCards, si >= 0 && seats.length >= 2 && !final ? `eq-${si}` : null),
+          win ? h("span", { class: "pk-badge", style: "align-self:flex-start;margin:0" }, leaders.length > 1 ? "공동 1등" : "승리") : null)));
+    });
+    root.append(h("section", { class: "panel" },
+      h("div", { class: "pk-head" }, h("h2", {}, "결과 확인"), stepper()),
+      verdict || h("p", { class: "pk-note" }, "공개한 상대의 패만 넣으면 돼요. 폴드한 사람은 비워 두거나 상대 수를 줄여주세요."),
+      list,
+      h("p", { class: "pk-note", id: "eq-note" }, ""),
+      h("div", { class: "row-actions" },
+        h("button", { class: "btn", on: { click: () => { H.showdown = false; H.sel = null; hsave(); renderHoldem(); } } }, "게임 화면으로"),
+        h("button", { class: "btn primary", on: { click: newHand } }, "새 판"))));
   }
 
-  // players
-  const list = h("div", { class: "pk-players" });
-  hands.forEach((hd, p) => {
-    const s = scores[p];
-    const isWin = verdict && leaders.includes(p) && boardCards.length >= 3 && allIn;
-    const res = h("div", { class: "res" });
-    if (s != null && boardCards.length + hd.filter(c => c != null).length >= 2) {
-      const all = boardCards.concat(hd.filter(c => c != null));
-      const five = orderHand(best5(all));
-      res.append(...[
-        h("div", { class: "hand" }, handName(s), isWin && boardCards.length === 5 ? h("span", { class: "pk-badge" }, leaders.length > 1 ? "공동 1등" : "승리") : null),
-        h("div", { class: "detail" }, handDetail(s)),
-        all.length >= 5 ? h("div", { class: "pk-mini", "aria-label": "가장 높은 5장" }, five.map(c => pcard(c))) : null].filter(Boolean));
-    } else {
-      res.append(h("div", { class: "detail" }, "카드 2장을 넣어주세요"));
-    }
-    res.append(h("div", { class: "eq", id: `eq-${p}` }, h("span", {}, "승률"), h("span", { class: "bar" }, h("i", { style: "width:0%" })), h("b", {}, "–")));
-    list.append(h("div", { class: "pk-player" + (isWin ? " win" : "") },
-      h("span", { class: "num" }, `${p + 1}`),
-      h("div", { class: "slots" }, [0, 1].map(i => slotBtn({ t: "p", p, i }))),
-      res));
-  });
-  const pp = h("section", { class: "panel" },
-    h("div", { class: "pk-head" }, h("h2", {}, "플레이어 패"),
-      h("div", { class: "stepper", role: "group", "aria-label": "인원" },
-        h("button", { "aria-label": "한 명 빼기", disabled: H.n <= 2, on: { click: () => { H.hands[H.n - 1] = [null, null]; H.n--; if (H.sel?.t === "p" && H.sel.p >= H.n) H.sel = null; hsave(); renderHoldem(); } } }, "−"),
-        h("span", {}, `${H.n}명`),
-        h("button", { "aria-label": "한 명 더하기", disabled: H.n >= 9, on: { click: () => { H.n++; hsave(); renderHoldem(); } } }, "+"))),
-    verdict, list,
-    h("p", { class: "pk-note", id: "eq-note" }, "승률은 카드를 넣으면 계산돼요. 패를 모르는 사람은 무작위 카드로 가정해요."),
-    h("div", { class: "row-actions" }, h("button", { class: "btn", on: { click: () => { H = freshHoldem(H.n); hsave(); renderHoldem(); } } }, "새 판 (카드 모두 비우기)")),
-  );
-
-  // hand ranking reference
-  const ex = [["로열 스트레이트 플러시", "A♠ K♠ Q♠ J♠ 10♠"], ["스트레이트 플러시", "9♥ 8♥ 7♥ 6♥ 5♥"], ["포카드", "Q Q Q Q 7"], ["풀하우스", "8 8 8 K K"], ["플러시", "같은 무늬 5장"], ["스트레이트", "5 6 7 8 9"], ["트리플", "7 7 7 K 2"], ["투 페어", "J J 4 4 A"], ["원 페어", "10 10 A 8 3"], ["하이카드", "A J 9 6 2"]];
-  const rk = h("details", { class: "panel ranks" }, h("summary", {}, "족보 순서"),
+  const ex = [["로열 스트레이트 플러시", "A♠ K♠ Q♠ J♠ 10♠"], ["스트레이트 플러시", "9♥ 8♥ 7♥ 6♥ 5♥"], ["포카드", "Q Q Q Q 7"], ["풀하우스", "8 8 8 K K"], ["플러시", "같은 무늬 5장"], ["스트레이트", "9 8 7 6 5"], ["트리플", "7 7 7 K 2"], ["투 페어", "J J 4 4 A"], ["원 페어", "10 10 A 8 3"], ["하이카드", "A J 9 6 2"]];
+  root.append(h("details", { class: "panel ranks" }, h("summary", {}, "족보 순서"),
     h("ol", {}, ex.map(([n, e]) => h("li", {}, h("span", {}, n), h("span", { class: "ex" }, e)))),
-    h("p", { class: "pk-note", style: "margin-top:12px" }, "킥커는 족보가 같을 때 승부를 가르는 나머지 카드예요. 예를 들어 둘 다 10 페어면 킥커가 높은 쪽이 이겨요. 하이는 그 조합에서 가장 높은 카드예요."));
+    h("p", { class: "pk-note", style: "margin-top:12px" }, "킥커는 족보가 같을 때 승부를 가르는 나머지 카드예요. 예를 들어 둘 다 10 페어면 킥커가 높은 쪽이 이겨요. 하이는 그 조합에서 가장 높은 카드예요.")));
 
-  root.append(bp, pp, rk);
-
-  // picker
+  // docked card picker: always aimed at the next empty slot
   document.getElementById("picker")?.remove();
-  document.body.classList.toggle("picking", active && !!H.sel);
-  if (active && H.sel) {
-    const used = new Set([...H.board, ...H.hands.slice(0, H.n).flat()].filter(c => c != null));
-    const cur = slotVal(H.sel);
+  const showPicker = active && tgt && !H.fold;
+  document.body.classList.toggle("picking", !!showPicker);
+  if (showPicker) {
+    const used = new Set([...H.mine, ...H.board, ...H.opps.slice(0, H.opp).flat()].filter(c => c != null));
+    const cur = slotVal(tgt);
     const grid = h("div", { class: "grid" });
     for (let s = 0; s < 4; s++) for (let r = 14; r >= 2; r--) {
       const c = (r - 2) * 4 + s;
       grid.append(h("button", { class: (isRed(c) ? "red" : "") + (c === cur ? " cur" : ""), disabled: used.has(c) && c !== cur, "aria-label": `${RL(r)}${SUITS[s]}`,
-        on: { click: () => { setSlot(H.sel, c); H.sel = nextEmpty(H.sel); hsave(); renderHoldem(); } } }, h("span", {}, RL(r)), h("span", { class: "s" }, SUITS[s])));
+        on: { click: () => { setSlot(tgt, c); H.sel = null; hsave(); renderHoldem(); } } }, h("span", {}, RL(r)), h("span", { class: "s" }, SUITS[s])));
     }
     document.body.append(h("div", { class: "picker", id: "picker" }, h("div", { class: "in" },
-      h("div", { class: "top" }, h("strong", {}, `${slotLabel(H.sel)} 고르기`),
+      h("div", { class: "top" }, h("strong", {}, `${slotLabel(tgt)} 고르기`),
         h("span", { class: "row-actions" },
-          cur != null ? h("button", { class: "btn small", on: { click: () => { setSlot(H.sel, null); hsave(); renderHoldem(); } } }, "비우기") : null,
-          h("button", { class: "btn small ghost", on: { click: () => { H.sel = null; hsave(); renderHoldem(); } } }, "닫기"))),
+          cur != null ? h("button", { class: "btn small", on: { click: () => { setSlot(tgt, null); hsave(); renderHoldem(); } } }, "비우기") : null,
+          h("button", { class: "btn small ghost", on: { click: () => { H.sel = null; H.fold = true; hsave(); renderHoldem(); } } }, "접기"))),
       grid)));
+  } else if (active && tgt && H.fold) {
+    document.body.append(h("div", { class: "picker", id: "picker" }, h("div", { class: "in" },
+      h("button", { class: "btn", on: { click: () => { H.fold = false; hsave(); renderHoldem(); } } }, `카드 넣기 · ${slotLabel(tgt)}`))));
   }
 
-  // equity, computed after paint
+  // equity after paint
   clearTimeout(eqTimer);
-  const anyCard = hands.some(hd => hd.some(c => c != null));
-  if (!anyCard) return;
+  if (!document.getElementById("eq-0")) return;
   eqTimer = setTimeout(() => {
-    const r = equity(board, hands);
-    hands.forEach((_, p) => {
+    const r = equity(H.board, seats.map(x => x.hand));
+    seats.forEach((_, p) => {
       const el = document.getElementById(`eq-${p}`); if (!el) return;
       const w = r.win[p] / r.total * 100, t = r.tie[p] / r.total * 100;
       el.querySelector("i").style.width = `${w + t}%`;
-      el.querySelector("b").textContent = `${w.toFixed(1)}%`;
-      el.title = `이김 ${w.toFixed(1)}% · 비김 ${t.toFixed(1)}%`;
-      if (t >= 0.1) el.querySelector("b").textContent += ` (+비김 ${t.toFixed(1)}%)`;
+      el.querySelector("b").textContent = `${w.toFixed(1)}%` + (t >= 0.1 ? ` (+비김 ${t.toFixed(1)}%)` : "");
     });
     const note = document.getElementById("eq-note");
     if (note) note.textContent = r.exact
       ? `남은 카드의 모든 경우(${r.total.toLocaleString()}가지)를 계산한 정확한 승률이에요.`
-      : `무작위로 ${r.total.toLocaleString()}판을 돌려 본 추정 승률이에요. 패를 모르는 사람은 무작위 카드로 가정해요.`;
+      : H.showdown ? `무작위로 ${r.total.toLocaleString()}판을 돌려 본 추정 승률이에요.`
+      : `상대 ${H.opp}명의 패를 무작위로 가정하고 ${r.total.toLocaleString()}판을 돌려 본 추정 승률이에요. 누가 폴드하면 상대 수를 줄여주세요.`;
   }, 30);
 }
 
@@ -771,7 +787,7 @@ function setTab(t) {
   document.getElementById("app").hidden = t !== "bounce";
   document.getElementById("resetBox").hidden = t !== "bounce";
   document.getElementById("holdem").hidden = t !== "holdem";
-  document.getElementById("sub").textContent = t === "bounce" ? "판마다 정답 카드를 뽑고, 어느 팀이 이겼는지 기록합니다" : "내 최고 족보와 승률을 보고, 누가 이겼는지 판정합니다";
+  document.getElementById("sub").textContent = t === "bounce" ? "판마다 정답 카드를 뽑고, 어느 팀이 이겼는지 기록합니다" : "내 족보와 승률을 보고, 마지막에 누가 이겼는지 판정합니다";
   renderHoldem();
 }
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
